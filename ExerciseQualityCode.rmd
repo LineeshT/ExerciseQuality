@@ -1,0 +1,88 @@
+---
+title: "Exercise Quality"
+author: "Lineesh Thamaran"
+date: "Monday, October 24, 2016"
+output: html_document
+---
+
+##Introducton:
+People regularly collect large amount of data about their personal health activitties and quantify how much of a particular activity they do. This project tries to quantify the quality of their activities.
+
+##Analysis:
+The manner in which the activities are performed is in the "classes" variable. Our goal is to predict the "classe" variable for the pml_testing data set.
+
+##Preprocess:
+Download the training and test data into dataTrain and dataTest csv files.
+
+```{r}
+library(caret)
+trainUrl <- 'https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv'
+testUrl <- 'https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv'
+download.file(url = trainUrl, destfile = 'data_train.csv')
+download.file(url = testUrl, destfile = 'data_test.csv')
+```
+
+Preliminary inspection shows that some columns contain data that is not useful. Load the data in memory, and remove data that is not useful. 
+```{r}
+dataTrain <- read.csv(file = 'data_train.csv', na.strings = c('NA','#DIV/0!',''))
+dataTest <- read.csv(file = 'data_test.csv', na.strings = c('NA','#DIV/0!',''))
+```
+
+Explore the data.
+```{r}
+summary(dataTrain)
+levels(dataTrain$classe)
+```
+
+Exploratory data analysis shows that the first 7 columns are not useful for prediction model. Convert the rest of the columns (except "classe") to numeric.
+```{r}
+for(i in c(8:ncol(dataTrain)-1)) {
+  dataTrain[,i] = as.numeric(as.character(dataTrain[,i]))
+  dataTest[,i] = as.numeric(as.character(dataTest[,i]))
+}
+```
+
+Create a usedColumns vector with the columns that we are planning to use. i.e remove columns with NA in it. Also remove the first 7 columns.
+```{r}
+usedColumns <- colnames(dataTrain)
+usedColumns <- colnames(dataTrain[colSums(is.na(dataTrain)) == 0])
+usedColumns <- usedColumns[-c(1:7)]
+```
+
+Plot the features against "classe". The plot shows similar distribution for all features. 
+```{r}
+featurePlot(dataTrain[,usedColumns[c(1:10)]], dataTrain[,160], "strip")
+```
+
+Partition the data into training and test sets. 80% of data is used for training and 20% for testing.
+```{r}
+set.seed(32343)
+index_train <- createDataPartition(y=dataTrain$classe, p=0.80, list=FALSE)
+p_data_train <- dataTrain[index_train,usedColumns]
+p_data_val <- dataTrain[-index_train,usedColumns]
+```
+
+##Training
+Train the model using random forest and create the confusion matrix:
+```{r}
+mod_rf <- train(classe ~ ., data = p_data_train, method = 'rf', trControl = trainControl(method = "cv", number = 4, allowParallel = TRUE, verboseIter = TRUE))
+pred_rf <- predict(mod_rf, p_data_val)
+cm_rf <- confusionMatrix(pred_rf, p_data_val$classe)
+cm_rf
+```
+
+Accuracy of our model is 0.9949. So the sample error is 0.0051 (i.e 1 - accuracy). Since our goal is to predict the outcome for 20 cases, 99% accuracy is sufficent. 
+
+##Prediction:
+Predict the classe for the test data using the model.
+```{r}
+last_column <- length(colnames(dataTest[]))
+colnames(dataTest)[last_column] <- 'classe'
+quiz_rf <- predict(mod_rf,dataTest[,usedColumns])
+quiz_rf
+```
+
+
+
+
+
